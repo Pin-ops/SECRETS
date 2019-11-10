@@ -4,13 +4,12 @@ const express = require("express");
 const bodyParser = require("body-parser");
 const ejs = require("ejs");
 const mongoose = require("mongoose");
-const encrypt = require("mongoose-encryption");
+const bcrypt = require("bcrypt");
+const saltRounds = 10;
 
+// const encrypt = require("mongoose-encryption");
 
 const app = express();
-
-
-console.log(process.env.API_KEY);
 
 app.use(express.static("public"));
 app.set('view engine', 'ejs');
@@ -32,8 +31,8 @@ const userSchema = new mongoose.Schema({
 });
 
 ////////Plugin must be here(before using userSchema)
-
-userSchema.plugin(encrypt, { secret: process.env.SECRET, encryptedFields: ["password"] });
+///It can be rereaded, so we remove it and use hash instead.
+// userSchema.plugin(encrypt, { secret: process.env.SECRET, encryptedFields: ["password"] });
 
 ////This encrypyt the entire line but encryptedFiells encrypts only a spesicific thing. 
 
@@ -59,17 +58,18 @@ app.get("/register", (req, res) => {
 /// DATABASE OF USERS ///
 
 app.post("/register", (req, res) => {
-
-    const newUser = new User({
-        email: req.body.username,
-        password: req.body.password
-    });
-    newUser.save((err) => {
-        if (err) {
-            console.log(err);
-        } else {
-            res.render("secrets") ///if only  user is successfully registered,can see "secrets"page
-        };
+    bcrypt.hash(req.body.password, saltRounds, function(err, hash) {
+        const newUser = new User({
+            email: req.body.username,
+            password: hash
+        });
+        newUser.save((err) => {
+            if (err) {
+                console.log(err);
+            } else {
+                res.render("secrets") ///if only  user is successfully registered,can see "secrets"page
+            };
+        });
     });
 });
 
@@ -82,12 +82,15 @@ app.post("/login", function(req, res) {
 
     //////CHECK IF THIS USER REALLY EXISTS 
     User.findOne({ email: username }, function(err, foundUser) { ////not only the email adress
-        if (err) {
-            console.log(err);
-        } else {
-            if (foundUser) {
-                if (foundUser.password === password) { // also the password must be the same with the database.
-                    res.render("secrets");
+            if (err) {
+                console.log(err);
+            } else {
+                if (foundUser) {
+                    bcrypt.compare(password, foundUser.password, function(err, result) {
+                        if (result === true) {
+                            res.render("secrets");
+                        }
+                    });
                 }
             }
         }
